@@ -28,3 +28,13 @@ The repository includes an example of connecting Redis to a distributed message 
 * A Content Delivery Network (CDN) to provide content distribution and security, and to offload Layer 3 / Layer 4 connections from the Edge Database.
 
 ## Client Interfaces
+
+THe repository includes examples of Websocket, Server-Sent-Events, and API interfaces to the event system. Each protoocl has ideal use cases- 
+
+* Websockets can be used for bi-directional communication to and from the user, and in cases where the event data is specific to a user.
+
+* Server-Sent Events are good for unidicrectional event broadcasting to the entire population or to large groups.
+
+* API interfaces can be used when clients are unable to support SSE or websockets, or when client flow requires a polling of current state.
+
+Additionally, the system cna be used with native protocols (such as MQTT over TLS), within platforms such as mobile applications, and offer better performance with lower overhead. 
