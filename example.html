@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Realtime Scoreboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h2 { margin-top: 30px; }
+    .scores { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+  </style>
+</head>
+<body>
+  <h1>Realtime Scoreboard</h1>
+
+  <h2>WebSocket Scores</h2>
+  <div id="ws-scores" class="scores">Waiting for WebSocket data...</div>
+
+  <h2>SSE Scores</h2>
+  <div id="sse-scores" class="scores">Waiting for SSE data...</div>
+
+  <h2>REST API Scores</h2>
+  <div id="rest-scores" class="scores">Click button to load scores.</div>
+  <button id="load-scores">Load Scores</button>
+
+  <script>
+    // --- WebSocket Connection ---
+    const wsScoresDiv = document.getElementById('ws-scores');
+    const ws = new WebSocket('wss://example.com/scores-ws');
+
+    ws.onopen = () => {
+      console.log('WebSocket connected');
+    };
+
+    ws.onmessage = (event) => {
+      console.log('WebSocket message:', event.data);
+      wsScoresDiv.textContent = event.data;
+    };
+
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    ws.onclose = () => {
+      console.log('WebSocket closed');
+    };
+
+    // --- SSE Connection ---
+    const sseScoresDiv = document.getElementById('sse-scores');
+    const sse = new EventSource('https://example.com/scores-sse');
+
+    sse.onmessage = (event) => {
+      console.log('SSE message:', event.data);
+      sseScoresDiv.textContent = event.data;
+    };
+
+    sse.onerror = (error) => {
+      console.error('SSE error:', error);
+    };
+
+    // --- REST API ---
+    const restScoresDiv = document.getElementById('rest-scores');
+    const loadButton = document.getElementById('load-scores');
+
+    loadButton.addEventListener('click', () => {
+      fetch('https://example.com/api/scores')
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+          return response.json();
+        })
+        .then(data => {
+          console.log('REST API data:', data);
+          restScoresDiv.textContent = JSON.stringify(data);
+        })
+        .catch(error => {
+          console.error('REST API error:', error);
+          restScoresDiv.textContent = 'Error loading scores.';
+        });
+    });
+  </script>
+</body>
+</html>
