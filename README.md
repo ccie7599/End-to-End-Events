@@ -43,10 +43,12 @@ Additionally, the system cna be used with native protocols (such as MQTT over TL
 
 Included in this repository are components built for a hyperscale (10 Million+ Concurrent users), low-latency (10-50ms RTT from user to edge), bidirectional realtime public-facing system. 
 
-[index.js] - sample lambda code to be triggered by AWS Simple Notification Service (SNS), forwarding SNS events to a distributed edge event platform. 
+[index.js]([index.js]) - sample lambda code to be triggered by AWS Simple Notification Service (SNS), forwarding SNS events to a distributed edge event platform. 
 
-[stamped.js] - nodejs function that taps event stream to add metrics and metadata to the event, and taps acknowledgement stream to calculate RTT latency for metrics publishing. 
+[stamped.js](stamped.js) - nodejs function that taps event stream to add metrics and metadata to the event, and taps acknowledgement stream to calculate RTT latency for metrics publishing. 
 
-[events.html](events.html) - demo web application showing event feed with latency meaurements, and realtime state table and RTT latency of all connected users, and their shared location on a map. 
+[events.html](events.html) - demo web application showing event feed with latency meaurements, and realtime state table and RTT latency of all connected users, and their shared location on a map.
+
+These ligweight components, combined with a [horiztonally scalable function and distributed data platform](https://www.harpersystems.dev), make up a realtime platform with global CDN-scale. 
 
 
