@@ -38,3 +38,13 @@ THe repository includes examples of Websocket, Server-Sent-Events, and API inter
 * API interfaces can be used when clients are unable to support SSE or websockets, or when client flow requires a polling of current state.
 
 Additionally, the system cna be used with native protocols (such as MQTT over TLS), within platforms such as mobile applications, and offer better performance with lower overhead. 
+
+# Live Events Demo
+
+Included in this repository are components built for a hyperscale (10 Million+ Concurrent users), low-latency (10-50ms RTT from user to edge), bidirectional realtime public-facing system. 
+
+[index.js] - sample lambda code to be triggered by AWS Simple Notification Service (SNS), forwarding SNS events to a distributed edge event platform. 
+
+[stamped.js] - nodejs function that taps event stream to add metrics and metadata to the event, and taps acknowledgement stream to calculate RTT latency for metrics publishing. 
+
+
