@@ -51,4 +51,5 @@ Included in this repository are components built for a hyperscale (10 Million+ C
 
 These ligweight components, combined with a [horiztonally scalable function and distributed data platform](https://www.harpersystems.dev), make up a realtime platform with global CDN-scale. 
 
+<img width="1191" height="796" alt="CDI poc drawio" src="https://github.com/user-attachments/assets/7fe3cb59-45db-4699-b36d-b2e644c02fa7" />
 
