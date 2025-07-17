@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Live MQTT Events Viewer</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    defer
+  ></script>
+  <style>
+    body {
+      margin: 0; background: #121212; color: #fff;
+      font-family: sans-serif; padding: 2em;
+    }
+    .tab-nav {
+      display: flex;
+      gap: 1em;
+      margin-bottom: 1em;
+    }
+    .tab-button {
+      cursor: pointer;
+      padding: 0.5em 1em;
+      border: none;
+      background: #1e1e1e;
+      color: #ccc;
+      border-bottom: 3px solid transparent;
+    }
+    .tab-button.active {
+      border-bottom: 3px solid #00ffc3;
+      color: #00ffc3;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .quote-display {
+      background: #1e1e1e;
+      padding: 1em;
+      border-radius: 8px;
+      max-width: 800px;
+      overflow-wrap: break-word;
+      margin-bottom: 1em;
+    }
+    .latency-label {
+      margin-top: 0.5em;
+      background: #1a1a1a;
+      padding: 0.5em;
+      border-left: 5px solid #00ffc3;
+      border-radius: 4px;
+      font-weight: bold;
+      color: #ccc;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1em;
+    }
+    th, td {
+      padding: 0.5em;
+      border-bottom: 1px solid #333;
+      text-align: left;
+    }
+    th {
+      background-color: #222;
+    }
+    #map {
+      height: 500px;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Live MQTT Events Viewer</h1>
+  <div class="tab-nav">
+    <button class="tab-button active" data-tab="events">Live Events</button>
+    <button class="tab-button" data-tab="metrics">Metrics</button>
+    <button class="tab-button" data-tab="locations">Locations</button>
+  </div>
+
+  <div id="events" class="tab-content active"></div>
+  <div id="metrics" class="tab-content">
+    <table id="metricsTable">
+      <thead>
+        <tr>
+          <th>Client ID</th>
+          <th>Latitude</th>
+          <th>Longitude</th>
+          <th>Round-Trip Deliver Time (ms)</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div id="locations" class="tab-content">
+    <div id="map"></div>
+  </div>
+
+  <script type="module">
+    import { connect, StringCodec } from "https://cdn.jsdelivr.net/npm/nats.ws@1.10.0/esm/nats.js";
+
+    const quoteContainer = document.createElement("div");
+    document.getElementById("events").appendChild(quoteContainer);
+
+    const clientInfo = {
+      client_id: crypto.randomUUID(),
+      user_agent: navigator.userAgent,
+      lat: null,
+      lon: null
+    };
+
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          clientInfo.lat = pos.coords.latitude;
+          clientInfo.lon = pos.coords.longitude;
+        },
+        err => {
+          console.warn("Geolocation error:", err.message);
+        },
+        { enableHighAccuracy: true, timeout: 5000 }
+      );
+    }
+
+    document.querySelectorAll(".tab-button").forEach(button => {
+button.addEventListener("click", () => {
+  document.querySelectorAll(".tab-button").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+  button.classList.add("active");
+  const tab = document.getElementById(button.dataset.tab);
+  tab.classList.add("active");
+
+  // Force map to resize if tab is 'locations'
+  if (button.dataset.tab === "locations" && map) {
+    setTimeout(() => map.invalidateSize(), 100); // Delay to ensure DOM is visible
+  }
+});
+    });
+
+    const metricsTable = document.querySelector("#metricsTable tbody");
+    const clientRows = new Map();
+
+    function updateMetricsRow(data) {
+      const { client_id, lat, lon, deliver_time } = data;
+      const now = Date.now();
+
+      let row = clientRows.get(client_id);
+      if (!row) {
+        row = document.createElement("tr");
+        row.innerHTML = `
+          <td class="cid"></td>
+          <td class="lat"></td>
+          <td class="lon"></td>
+          <td class="dt"></td>
+        `;
+        metricsTable.appendChild(row);
+        clientRows.set(client_id, row);
+      }
+
+      row.querySelector(".cid").textContent = client_id;
+      row.querySelector(".lat").textContent = lat ?? "N/A";
+      row.querySelector(".lon").textContent = lon ?? "N/A";
+      row.querySelector(".dt").textContent = deliver_time;
+      row.dataset.lastSeen = now;
+    }
+
+    function purgeOldRows() {
+      const now = Date.now();
+      for (const [client_id, row] of clientRows.entries()) {
+        const lastSeen = Number(row.dataset.lastSeen);
+        if (now - lastSeen > 10000) {
+          row.remove();
+          clientRows.delete(client_id);
+        }
+      }
+    }
+    setInterval(purgeOldRows, 1000);
+
+    // Map setup
+    let map, markerLayer;
+    const clientMarkers = new Map();
+
+    function updateClientLocation({ client_id, lat, lon }) {
+      if (typeof lat !== 'number' || typeof lon !== 'number') return;
+
+      const now = Date.now();
+
+      if (!map) {
+        map = L.map("map", { zoomControl: false }).setView([0, 0], 2);
+        L.tileLayer(
+          "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+          { attribution: '&copy; OSM &copy; CARTO', subdomains: 'abcd', maxZoom: 19 }
+        ).addTo(map);
+        markerLayer = L.layerGroup().addTo(map);
+      }
+
+      let entry = clientMarkers.get(client_id);
+
+      if (entry) {
+        entry.marker.setLatLng([lat, lon]);
+        entry.lastSeen = now;
+      } else {
+        const marker = L.circleMarker([lat, lon], {
+          radius: 5,
+          fillColor: "#00ff88",
+          color: "#00ff88",
+          weight: 1,
+          opacity: 0.9,
+          fillOpacity: 0.9
+        }).addTo(markerLayer);
+
+        clientMarkers.set(client_id, { marker, lastSeen: now });
+
+      }
+    }
+
+    function purgeOldMarkers() {
+      const now = Date.now();
+      for (const [client_id, entry] of clientMarkers.entries()) {
+        if (now - entry.lastSeen > 10000) {
+          markerLayer.removeLayer(entry.marker);
+          clientMarkers.delete(client_id);
+        }
+      }
+    }
+    setInterval(purgeOldMarkers, 1000);
+
+    async function initNATS() {
+      const nc = await connect({ servers: "wss://cdi-events.connected-cloud.io/wss" });
+      const sc = StringCodec();
+
+      (async () => {
+        for await (const msg of nc.subscribe("metrics")) {
+          try {
+            const metrics = JSON.parse(sc.decode(msg.data));
+            updateMetricsRow(metrics);
+            updateClientLocation(metrics);
+          } catch (e) {
+            console.warn("Bad metrics data:", e.message);
+          }
+        }
+      })();
+
+      for await (const msg of nc.subscribe("events-export-stamped")) {
+        const data = sc.decode(msg.data);
+        let payload;
+        try {
+          payload = JSON.parse(data);
+        } catch {
+          payload = { raw: data };
+        }
+
+        const now = Date.now();
+        const originTime = Number(payload.origin_time);
+        const publishTime = Number(payload.publish_time);
+        const edgeTime = Number(payload.edge_time);
+
+        const totalTime = originTime ? (now - originTime) : null;
+        const edgeDelivery = edgeTime ? (now - edgeTime) : null;
+        const awsToAkamai = (edgeTime && publishTime) ? (edgeTime - publishTime) : null;
+        const awsLatency = (publishTime && originTime) ? (publishTime - originTime) : null;
+
+        const box = document.createElement("div");
+        box.className = "quote-display";
+        box.innerHTML = `
+          <div><strong>Message:</strong> <pre>${JSON.stringify(payload, null, 2)}</pre></div>
+          <div class="latency-label">
+            Total: ${totalTime ?? 'N/A'} ms | 
+            Edge Delivery: ${edgeDelivery ?? 'N/A'} ms | 
+            AWS → Akamai: ${awsToAkamai ?? 'N/A'} ms | 
+            AWS Latency: ${awsLatency ?? 'N/A'} ms
+          </div>
+        `;
+        quoteContainer.prepend(box);
+        if (quoteContainer.children.length > 20) {
+          quoteContainer.removeChild(quoteContainer.lastChild);
+        }
+
+        if (payload.id) {
+          const ackPayload = {
+            message_id: payload.id,
+            ack_time: Date.now(),
+            edge_time: payload.edge_time ?? null,
+            ...clientInfo
+          };
+          nc.publish("ack", sc.encode(JSON.stringify(ackPayload)));
+        }
+      }
+    }
+
+    initNATS().catch(err => {
+      document.body.innerHTML = "<p style='color: red;'>Failed to connect to NATS.</p>";
+      console.error(err);
+    });
+  </script>
+</body>
+</html>
