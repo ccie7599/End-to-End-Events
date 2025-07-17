@@ -47,4 +47,6 @@ Included in this repository are components built for a hyperscale (10 Million+ C
 
 [stamped.js] - nodejs function that taps event stream to add metrics and metadata to the event, and taps acknowledgement stream to calculate RTT latency for metrics publishing. 
 
+[events.html](events.html) - demo web application showing event feed with latency meaurements, and realtime state table and RTT latency of all connected users, and their shared location on a map. 
+
 
